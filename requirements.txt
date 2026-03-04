@@ -6,3 +6,5 @@ pickle-mixin
 yfinance
 matplotlib 
 plotly
+gunicorn
+flask
