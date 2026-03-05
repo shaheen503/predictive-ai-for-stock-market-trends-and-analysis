@@ -9,13 +9,12 @@ import matplotlib.pyplot as plt
 # -------------------------------
 # Load the trained model
 # -------------------------------
-with open("model.pkl", "rb") as model_file:
-    model = pickle.load(model_file)
+model = pickle.load(open("model.pkl", "rb"))
 
 # -------------------------------
-# Fetch stock data (CACHED)
+# Fetch stock data
 # -------------------------------
-@st.cache_data(ttl=300)   # 5 minutes cache
+@st.cache_data(ttl=300)
 def fetch_stock_data(stock_symbol):
     stock = yf.Ticker(stock_symbol)
     df = stock.history(period="1mo")
@@ -26,7 +25,7 @@ def download_stock_data(stock_symbol):
     return yf.download(stock_symbol, period="6mo")
 
 # -------------------------------
-# Compute RSI
+# RSI Calculation
 # -------------------------------
 def compute_rsi(series, period=14):
     delta = series.diff()
@@ -37,7 +36,7 @@ def compute_rsi(series, period=14):
     return rsi
 
 # -------------------------------
-# Prepare Features
+# Feature Preparation
 # -------------------------------
 def prepare_features(df):
     df['EMA20'] = df['Close'].ewm(span=20, adjust=False).mean()
@@ -46,61 +45,68 @@ def prepare_features(df):
 
     df = df.dropna()
 
-    latest_features = df[['Close', 'EMA20', 'EMA50', 'RSI']].iloc[-1].values
+    latest = df[['Close','EMA20','EMA50','RSI']].iloc[-1].values
 
     scaler = MinMaxScaler()
-    scaled_features = scaler.fit_transform([latest_features])
+    scaled = scaler.fit_transform([latest])
 
-    return scaled_features[0]
+    return scaled[0]
 
 # -------------------------------
-# Predict stock movement
+# Prediction
 # -------------------------------
-def predict_stock_movement(features):
+def predict_stock(features):
     prediction = model.predict([features])
     return "BUY 📈" if prediction[0] == 1 else "SELL 📉"
 
 # -------------------------------
 # Streamlit UI
 # -------------------------------
-st.title("📊 Predictive AI Model for Stock Market Trends and Analysis")
+st.set_page_config(page_title="AI Stock Predictor", layout="wide")
+
+st.title("📊 AI Stock Market Prediction App")
 
 st.sidebar.header("Enter Stock Symbol")
 stock_symbol = st.sidebar.text_input(
-    "Stock Symbol (e.g., AAPL, TSLA, GOOG)", "AAPL"
+    "Example: AAPL, TSLA, GOOG",
+    "AAPL"
 )
 
 # -------------------------------
-# Predict Button
+# Prediction Button
 # -------------------------------
-if st.sidebar.button("Predict"):
+if st.sidebar.button("Predict Stock"):
 
     try:
         df = fetch_stock_data(stock_symbol.upper())
 
         if df.empty:
-            st.sidebar.error("No data found. Try another stock symbol.")
+            st.sidebar.error("Invalid stock symbol")
         else:
             features = prepare_features(df)
-            result = predict_stock_movement(features)
-            st.sidebar.success(f"Prediction for {stock_symbol.upper()}: {result}")
+            result = predict_stock(features)
+            st.sidebar.success(f"Prediction: {result}")
 
-    except Exception:
-        st.sidebar.error("Too many requests. Please wait 10-15 minutes and try again.")
+    except:
+        st.sidebar.error("API request limit reached. Try again later.")
 
 # -------------------------------
-# Plot Stock Data
+# Graph
 # -------------------------------
-def plot_stock_prices(df, stock_symbol):
-    st.subheader(f"Stock Price Trend for {stock_symbol.upper()}")
-    fig, ax = plt.subplots(figsize=(10, 5))
-    ax.plot(df.index, df['Close'])
+def plot_stock(df, stock_symbol):
+
+    st.subheader(f"{stock_symbol.upper()} Stock Price Trend")
+
+    fig, ax = plt.subplots()
+
+    ax.plot(df.index, df["Close"])
     ax.set_xlabel("Date")
-    ax.set_ylabel("Stock Price (USD)")
+    ax.set_ylabel("Price")
+
     st.pyplot(fig)
 
 # -------------------------------
-# Show Data & Graph Button
+# Show Data Button
 # -------------------------------
 if st.button("Show Stock Data & Graph"):
 
@@ -108,10 +114,10 @@ if st.button("Show Stock Data & Graph"):
         df = download_stock_data(stock_symbol.upper())
 
         if df.empty:
-            st.error("No data found. Try another stock symbol.")
+            st.error("No stock data found")
         else:
             st.write(df)
-            plot_stock_prices(df, stock_symbol)
+            plot_stock(df, stock_symbol)
 
-    except Exception:
-        st.error("Too many requests. Please wait some time and try again.")
+    except:
+        st.error("Too many requests. Try again later.")
